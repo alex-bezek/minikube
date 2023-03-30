@@ -342,6 +342,17 @@ func addonSpecificChecks(cc *config.ClusterConfig, name string, enable bool, run
 		return false, nil
 	}
 
+	if name == "ngrok" && enable {
+		out.Boxed(`Ngrok ingress controller has been successfully enabled.
+Please create a secret with your credentials via
+> k create secret generic ngrok-ingress-controller-credentials --from-literal=AUTHTOKEN=YOUR-TOKEN --from-literal=API_KEY=YOUR-API-KEY
+
+If you do not have an account, you can create one at https://ngrok.com/signup
+
+Create Ingress objects for services to share on the internet or test with webhooks!
+		`)
+	}
+
 	// If the gcp-auth credentials haven't been mounted in, don't start the pods
 	if name == "gcp-auth" && enable {
 		rr, err := runner.RunCmd(exec.Command("cat", credentialsPath))

@@ -155,4 +155,8 @@ var (
 	// CloudSpanner assets for cloud-spanner addon
 	//go:embed cloud-spanner/*.yaml
 	CloudSpanner embed.FS
+
+	// NgrokAssets assets for ngrok addon
+	//go:embed ngrok/*.yaml
+	NgrokAssets embed.FS
 )

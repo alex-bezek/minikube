@@ -75,6 +75,7 @@ func TestAddonsList(t *testing.T) {
 	t.Run("NonExistingClusterJSON", func(t *testing.T) {
 		type addons struct {
 			Ambassador *interface{} `json:"ambassador"`
+			// Ngrok      *interface{} `json:"ngrok"`
 		}
 
 		r, w, err := os.Pipe()

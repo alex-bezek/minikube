@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: ngrok-ingress-controller
+    gcp-auth-skip-secret: "true"
+  name: ngrok-ingress-controller-manager
+  namespace: default
+  annotations:
+    checksum/agent-config: e6d87207b1692aa4cd03aa4d43f78f0b0368869f05aea346d7b50f4b3bda81f9
+    checksum/controller-role: 979fb73a24195d00e81a74ac0d415fef74c3afaf5f9659262fb2bc9736f26137
+    checksum/rbac: 57d6448fa141f80e62281718c1f2cab65679512e4c07f87af23ab984af4d1e47
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ngrok-ingress-controller
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app: ngrok-ingress-controller
+    spec:
+      serviceAccountName: ngrok-ingress-controller-manager
+      volumes:
+      - name: scripts
+        configMap:
+          name: scripts
+          defaultMode: 0755
+      containers:
+      - name: ngrok-ingress-controller
+        image: ngrok-ingress-controller:latest
+        imagePullPolicy: Never
+        command:
+        - /manager
+        args:
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=127.0.0.1:8080
+        - --leader-elect
+        securityContext:
+          allowPrivilegeEscalation: false
+        env:
+        - name: NGROK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: API_KEY
+              name: ngrok-ingress-controller-credentials
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      - name: ngrok-cli
+        image: ngrok/ngrok:3
+        command:
+        - ./scripts/gen-agent-config.sh
+        envFrom:
+        - configMapRef:
+            name: ngrok-ingress-controller-agent-cm
+            optional: true
+        env:
+        - name: NGROK_AUTHTOKEN
+          valueFrom:
+            secretKeyRef:
+              key: AUTHTOKEN
+              name: ngrok-ingress-controller-credentials
+        volumeMounts:
+          - name: scripts
+            mountPath: /scripts
+            readOnly: true

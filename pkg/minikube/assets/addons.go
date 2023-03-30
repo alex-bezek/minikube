@@ -748,6 +748,38 @@ var Addons = map[string]*Addon{
 	}, map[string]string{
 		"CloudSpanner": "gcr.io",
 	}),
+	"ngrok": NewAddon([]*BinAsset{
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-agentcm.yaml", vmpath.GuestAddonsDir, "ngrok-agentcm.yaml", "6040"),
+		&BinAsset{
+			FS: addons.NgrokAssets,
+			BaseAsset: BaseAsset{
+				SourcePath:  "ngrok/ngrok-agentcm2.yaml",
+				TargetDir:   vmpath.GuestAddonsDir,
+				TargetName:  "ngrok-agentcm2.yaml",
+				Permissions: "6040",
+			},
+			template: nil,
+		},
+		// MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-agentcm2.yaml", vmpath.GuestAddonsDir, "ngrok-agentcm2.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-clusterrole.yaml", vmpath.GuestAddonsDir, "ngrok-clusterrole.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-clusterrole2.yaml", vmpath.GuestAddonsDir, "ngrok-clusterrole2.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-clusterrolebinding.yaml", vmpath.GuestAddonsDir, "ngrok-clusterrolebinding.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-clusterrolebinding2.yaml", vmpath.GuestAddonsDir, "ngrok-clusterrolebinding2.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-controllercm.yaml", vmpath.GuestAddonsDir, "ngrok-controllercm.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-deployment.yaml", vmpath.GuestAddonsDir, "ngrok-deployment.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-ingressclass.yaml", vmpath.GuestAddonsDir, "ngrok-ingressclass.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-rolebinding.yaml", vmpath.GuestAddonsDir, "ngrok-rolebinding.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-serviceaccount.yaml", vmpath.GuestAddonsDir, "ngrok-serviceaccount.yaml", "6040"),
+		MustBinAsset(addons.NgrokAssets, "ngrok/ngrok-role.yaml", vmpath.GuestAddonsDir, "ngrok-role.yaml", "6040"),
+	}, false, "ngrok", "3rd party (ngrok.com)", "", "https://minikube.sigs.k8s.io/docs/handbook/addons/ngrok/",
+		map[string]string{
+			"NgrokController": "ngrok-ingress-controller:latest",
+			"NgrokAgent":      "ngrok/ngrok:3",
+		},
+		map[string]string{
+			"NgrokController": "",
+			"NgrokAgent":      "docker.io",
+		}),
 }
 
 // parseMapString creates a map based on `str` which is encoded as <key1>=<value1>,<key2>=<value2>,...

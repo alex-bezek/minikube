@@ -1,0 +1,11 @@
+# Source: ngrok-ingress-controller/templates/agent-config-cm.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ngrok-ingress-controller-agent-cm
+  namespace: default
+data:
+  LOG:  "stdout"
+  METADATA: ""
+  REGION: "us"
+  REMOTE_MANAGEMENT: ""
