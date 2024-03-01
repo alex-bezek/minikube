@@ -153,6 +153,8 @@ kubectl get secret $SECRET --namespace headlamp --template=\{\{.data.token\}\} |
 
 	minikube{{.profileArg}} service yakd-dashboard -n yakd-dashboard
 `, out.V{"profileArg": tipProfileArg})
+	case "ngrok":
+		ngrokPostStart(cc, name, value)
 	}
 }
 

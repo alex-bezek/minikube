@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"golang.org/x/term"
@@ -170,5 +171,30 @@ func AskForStaticValidatedValue(s string, validator func(s string) bool) string 
 			continue
 		}
 		return response
+	}
+}
+
+// AskForChoice asks the user to choose from a list of options.
+func AskForChoice(prompt string, choices []string) string {
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		out.String("%s\n", prompt)
+		for i, choice := range choices {
+			out.String("%d. %s\n", i+1, choice)
+		}
+		out.String("Enter your choice (number): ")
+
+		response, err := reader.ReadString('\n')
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		choiceIndex, err := strconv.Atoi(strings.TrimSpace(response))
+		if err != nil || choiceIndex < 1 || choiceIndex > len(choices) {
+			out.Err("Invalid choice. Please try again.")
+			continue
+		}
+		return choices[choiceIndex-1]
 	}
 }

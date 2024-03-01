@@ -125,6 +125,12 @@ var Addons = []*Addon{
 		callbacks: []setFn{EnableOrDisableAddon, verifyAddonStatus},
 	},
 	{
+		name:        "ngrok",
+		set:         SetBool,
+		validations: []setFn{ngrokValidation},
+		callbacks:   []setFn{enableOrDisableNgrok, EnableOrDisableAddon},
+	},
+	{
 		name:      "nvidia-driver-installer",
 		set:       SetBool,
 		callbacks: []setFn{EnableOrDisableAddon},

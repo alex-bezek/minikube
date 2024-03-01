@@ -174,4 +174,8 @@ var (
 	// YakdAssets assets for yakd addon
 	//go:embed yakd/*.yaml yakd/*.tmpl
 	YakdAssets embed.FS
+
+	// NgrokAssets assets for ngrok addon
+	//go:embed ngrok/*.yaml
+	NgrokAssets embed.FS
 )

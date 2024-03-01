@@ -17,9 +17,12 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -275,6 +278,85 @@ var addonsConfigureCmd = &cobra.Command{
 					out.ErrT(style.Fatal, "Failed to configure auto-pause {{.profile}}", out.V{"profile": profile})
 				}
 			}
+		case "ngrok":
+			namespace := "ngrok-ingress-controller"
+			// check if namespace exists first
+			// if not, create namespace
+			exists, err := service.CheckNamespace(profile, namespace)
+			if err != nil {
+				out.ErrT(style.Fatal, "Error checking for existing `ngrok-ingress-controller` namespace: {{.error}}", out.V{"error": err})
+			}
+			if !exists {
+				err := service.CreateNamespace(profile, namespace)
+				if err != nil {
+					out.ErrT(style.Fatal, "Error creating `ngrok-ingress-controller` namespace: {{.error}}", out.V{"error": err})
+				}
+			}
+
+			exists, err = service.CheckSecretExists(profile, namespace, "ngrok-ingress-controller-credentials")
+			if err != nil {
+				out.ErrT(style.Fatal, "Error checking for existing `ngrok-ingress-controller-credentials secret`: {{.error}}", out.V{"error": err})
+			}
+
+			replaceOrSet := "set"
+			if exists {
+				replaceOrSet = "replace"
+			}
+			msg := fmt.Sprintf("Would you like to %s ngrok credentials?", replaceOrSet)
+			setCredentials := AskForYesNoConfirmation(msg, posResponses, negResponses)
+			if setCredentials {
+				ngrokAuthToken := AskForStaticValue("-- Enter ngrok authtoken: ")
+				ngrokAPIKey := AskForStaticValue("-- Enter ngrok apikey: ")
+
+				// Create ngrok Secret
+				err := service.CreateSecret(
+					profile,
+					namespace,
+					"ngrok-ingress-controller-credentials",
+					map[string]string{
+						"AUTHTOKEN": ngrokAuthToken,
+						"API_KEY":   ngrokAPIKey,
+					},
+					map[string]string{
+						"app":                           "ngrok",
+						"cloud":                         "ngrok",
+						"kubernetes.io/minikube-addons": "ngrok",
+					})
+				if err != nil {
+					out.FailureT("ERROR creating `ngrok-ingress-controller-credentials` secret: {{.error}}", out.V{"error": err})
+				}
+				// TODO: Restart the container if credentials were updated
+			}
+
+			configureIngress := AskForYesNoConfirmation("Would you like to configure ingress for existing services in your minikube cluster?", posResponses, negResponses)
+			if !configureIngress {
+				break
+			}
+
+			domainChoice := AskForSingleOrMultipleDomainChoice()
+			singleDomain := false
+			if domainChoice == "single" {
+				singleDomain = true
+			}
+
+			var domain string
+			if singleDomain {
+				domain = AskForStaticValue("What domain would you like to use?")
+			}
+
+			configurePolicyModule := AskForYesNoConfirmation("Would you like to create a policy module that can be used to secure ingress to services with authentication?", posResponses, negResponses)
+			if configurePolicyModule {
+				LoadAndCreatePolicyModules()
+			}
+
+			configureIngressToServices := AskForYesNoConfirmation("Would you like to create ingress to existing services?", posResponses, negResponses)
+			if configureIngressToServices {
+				AddIngressToServices(profile, singleDomain, domain)
+			}
+
+			out.SuccessT("Congrats, you have configured ingress with ngrok in your minikube cluster.")
+
+			// TODO: Restart the container if credentials were updated
 		default:
 			out.FailureT("{{.name}} has no available configuration options", out.V{"name": addon})
 			return
@@ -282,6 +364,104 @@ var addonsConfigureCmd = &cobra.Command{
 
 		out.SuccessT("{{.name}} was successfully configured", out.V{"name": addon})
 	},
+}
+
+func AskForSingleOrMultipleDomainChoice() string {
+	choice := AskForChoice("Would you like to use a single domain for all services or a unique domain for each? Free accounts can only use a single domain.", []string{"single", "multiple"})
+	return choice
+}
+
+func LoadAndCreatePolicyModules() {
+	for {
+		policyModulePath := AskForStaticValueOptional("Give path to policy module file (type 'none' if done):")
+		if policyModulePath == "none" {
+			break
+		}
+		// Load the policy module file and create the policy module
+		_, err := ReadFileContents(policyModulePath)
+		if err != nil {
+			out.Err("Error reading module set file: %v", err)
+			continue
+		}
+		// TODO: Take the output of the file and create a ngrok module set with a policy module
+		// there will likely be issues here because we would need to load the ngrok crd definition
+		// into the go client i think. maybe thats just apimachinery and the go client just takes strings
+		// though. we will see.
+
+	}
+}
+
+func AddIngressToServices(profile string, singleDomain bool, domain string) {
+	// List all services in the cluster
+	services, err := service.ListAllServices(profile)
+	if err != nil {
+		out.Err("Error listing services: %v", err)
+		return
+	}
+	serviceString := ""
+	for _, service := range services.Items {
+		for _, port := range service.Spec.Ports {
+			serviceString += fmt.Sprintf("%s:%s:%d\n", service.Namespace, service.Name, port.Port)
+		}
+	}
+	out.Boxed("Services:\n" + serviceString)
+
+	for {
+		serviceChoice := AskForStaticValue("What service would you like to add ingress for? Use the format namespace:service:port (type 'none' to exit):")
+		if serviceChoice == "none" {
+			break
+		}
+		// Check if the service exists in the list of services
+		found := false
+		for _, service := range services.Items {
+			for _, port := range service.Spec.Ports {
+				if fmt.Sprintf("%s:%s:%d", service.Namespace, service.Name, port.Port) == serviceChoice {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			out.Err("Service not found")
+			continue
+		}
+
+		// create ingress object variable to be modified by following functions and applied at the end
+
+		// addModuleSet := AskForYesNoConfirmation("Add a module set for authentication?", posResponses, negResponses)
+		// if addModuleSet {
+		// 	moduleSetName := AskForStaticValue("What module set would you like to add?")
+		// 	// Check if the module set exists and add it to the ingress
+		// 	// This is a placeholder; you'll need to implement the logic to add the module set to the ingress
+		// }
+
+		if !singleDomain {
+			domain = AskForStaticValue("What domain would you like to use?")
+		}
+
+		serviceParts := strings.Split(serviceChoice, ":")
+		namespace := serviceParts[0]
+		serviceName := serviceParts[1]
+		port, err := strconv.Atoi(string(serviceParts[2]))
+		if err != nil {
+			out.Err("Error converting port to int: %v", err)
+			return
+		}
+		// Create the ingress object
+		err = service.CreateIngress(profile, namespace, "ngrok-ingress-"+serviceName, domain, serviceName, int32(port), "ngrok")
+		if err != nil {
+			out.Err("Error creating ingress: %v", err)
+		}
+
+	}
+}
+
+func ReadFileContents(filePath string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file '%s': %w", filePath, err)
+	}
+	return string(data), nil
 }
 
 func init() {

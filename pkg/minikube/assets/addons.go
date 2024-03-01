@@ -801,6 +801,15 @@ var Addons = map[string]*Addon{
 		map[string]string{
 			"Yakd": "docker.io",
 		}),
+		"ngrok": NewAddon([]*BinAsset{
+		MustBinAsset(addons.NgrokAssets, "ngrok/manifests.yaml", vmpath.GuestAddonsDir, "manifests.yaml", "0640"),
+		}, false, "ngrok", "3rd party (ngrok)", "", "https://minikube.sigs.k8s.io/docs/handbook/addons/ngrok/",
+		map[string]string{
+			"ngrok": "ngrok/kubernetes-ingress-controller:0.10.2@sha256:84d190d9fc5be40325a4b28f68020e4f373dafedab5ea00e472f7813932755f3",
+		},
+		map[string]string{
+			"ngrok": "docker.io",
+		}),
 }
 
 // parseMapString creates a map based on `str` which is encoded as <key1>=<value1>,<key2>=<value2>,...

@@ -32,7 +32,9 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	core "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	typed_core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/klog/v2"
@@ -215,6 +217,37 @@ func CheckService(cname string, namespace string, service string) error {
 	return nil
 }
 
+func CheckNamespace(cname string, namespace string) (bool, error) {
+	client, err := K8s.GetCoreClient(cname)
+	if err != nil {
+		return false, errors.Wrap(err, "Error getting Kubernetes client")
+	}
+
+	_, err = client.Namespaces().Get(context.Background(), namespace, meta.GetOptions{})
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+func CreateNamespace(cname string, namespace string) error {
+	client, err := K8s.GetCoreClient(cname)
+	if err != nil {
+		return errors.Wrap(err, "Error getting Kubernetes client")
+	}
+
+	ns := &core.Namespace{
+		ObjectMeta: meta.ObjectMeta{
+			Name: namespace,
+		},
+	}
+	_, err = client.Namespaces().Create(context.Background(), ns, meta.CreateOptions{})
+	if err != nil {
+		return errors.Wrap(err, "Error creating namespace")
+	}
+	return nil
+}
+
 // OptionallyHTTPSFormattedURLString returns a formatted URL string, optionally HTTPS
 func OptionallyHTTPSFormattedURLString(bareURLString string, https bool) (string, bool) {
 	httpsFormattedString := bareURLString
@@ -374,6 +407,22 @@ func DeleteSecret(cname string, namespace, name string) error {
 	return nil
 }
 
+// CheckSecretExists checks if a secret exists in a namespace
+func CheckSecretExists(cname string, namespace, name string) (bool, error) {
+	client, err := K8s.GetCoreClient(cname)
+	if err != nil {
+		return false, &retry.RetriableError{Err: err}
+	}
+
+	secrets := client.Secrets(namespace)
+	_, err = secrets.Get(context.Background(), name, meta.GetOptions{})
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // check whether there are running pods for a service
 func CheckServicePods(cname, svcName, namespace string) error {
 	clientset, err := K8s.GetCoreClient(cname)
@@ -406,3 +455,75 @@ func CheckServicePods(cname, svcName, namespace string) error {
 	}
 	return fmt.Errorf("no running pod for service %s found", svcName)
 }
+
+// ListAllServices returns all services in all namespaces
+func ListAllServices(cname string) (*core.ServiceList, error) {
+	clientset, err := K8s.GetCoreClient(cname)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get k8s client")
+	}
+
+	return clientset.Services("").List(context.Background(), meta.ListOptions{})
+}
+
+// CreateIngress creates an Ingress object in the specified namespace
+func CreateIngress(cname string, namespace, name, host, serviceName string, servicePort int32, ingressClass string) error {
+	// Get the Kubernetes client
+	clientset, err := kapi.Client(cname)
+	if err != nil {
+		return &retry.RetriableError{Err: err}
+	}
+
+	pathType := networkingv1.PathTypePrefix
+
+	ingress := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: &ingressClass,
+			Rules: []networkingv1.IngressRule{
+				{
+					Host: host,
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: &networkingv1.HTTPIngressRuleValue{
+							Paths: []networkingv1.HTTPIngressPath{
+								{
+									Path:     "/",
+									PathType: &pathType, // Use the address of the variable
+									Backend: networkingv1.IngressBackend{
+										Service: &networkingv1.IngressServiceBackend{
+											Name: serviceName,
+											Port: networkingv1.ServiceBackendPort{
+												Number: servicePort,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err = clientset.NetworkingV1().Ingresses(namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
+	if err != nil {
+		return &retry.RetriableError{Err: err}
+	}
+
+	return nil
+}
+
+// // CreateSecret creates or modifies secrets
+// func CreateSecret(cname string, namespace, name string, dataValues map[string]string, labels map[string]string) error {
+// 	clientset, err := K8s.GetCoreClient(cname)
+// 	if err != nil {
+// 		return &retry.RetriableError{Err: err}
+// 	}
+
+// 	// create the secret in k8s
+// 	clientset
+// }
